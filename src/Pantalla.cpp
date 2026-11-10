@@ -114,8 +114,8 @@ void Pantalla::habitacion(const Bicho& b, const Animador& animador) {
     bicho(animador, b.humor());
 
     if (b.durmiendo() && b.vivo()) {
-        textoCorto(lienzo_, centro + 34, 54, kTenue, "z");
-        textoCorto(lienzo_, centro + 41, 44, kTenue, "Z");
+        textoCorto(lienzo_, centro + 34, 40, kTenue, "z");
+        textoCorto(lienzo_, centro + 41, 30, kTenue, "Z");
     }
 }
 
@@ -123,12 +123,18 @@ void Pantalla::franjaSuperior(const Bicho& b) {
     lienzo_.fillRect(0, 0, kAnchoPantalla, 12, c565(kSombra));
     textoCorto(lienzo_, 3, 2, kClaro, "BICHITO");
 
-    char medio[32];
+    char medio[40];
     const uint32_t horas = b.edadSegundos() / 3600;
     const uint32_t mins  = (b.edadSegundos() % 3600) / 60;
     snprintf(medio, sizeof(medio), "%s  %luh%02lu", bichito::nombre(b.etapa()),
              static_cast<unsigned long>(horas), static_cast<unsigned long>(mins));
-    textoCorto(lienzo_, 62, 2, kTenue, medio);
+    textoCorto(lienzo_, 56, 2, kTenue, medio);
+
+    if (b.etapa() != Etapa::Huevo) {
+        char estado[20];
+        snprintf(estado, sizeof(estado), "%s", bichito::nombre(b.humor()));
+        textoCorto(lienzo_, 148, 2, kClaro, estado);
+    }
 
     char bat[8];
     snprintf(bat, sizeof(bat), "%d%%", M5Cardputer.Power.getBatteryLevel());
@@ -191,11 +197,8 @@ void Pantalla::dibujar(const Bicho& b, const Animador& animador, uint32_t ahoraM
         textoCorto(lienzo_, 4, 110, kClaro, aviso);
     } else {
         panelNecesidades(b.necesidades());
-        char estado[40];
-        snprintf(estado, sizeof(estado), "esta %s", bichito::nombre(b.humor()));
-        textoCorto(lienzo_, 4, 20, kClaro, estado);
         if (!b.vivo()) {
-            textoCorto(lienzo_, 4, 30, kTenue, "R: de nuevo");
+            textoCorto(lienzo_, 4, 16, kTenue, "R: de nuevo");
         }
     }
 

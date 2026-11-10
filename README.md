@@ -116,8 +116,8 @@ Dos decisiones que conviene conocer antes de tocar el ritmo del juego:
 
 ## El arte
 
-`arte/bicho.txt` es el dibujo: un caracter por pixel, cuadros de 32 x 20 que en
-pantalla se ven a escala 3. Cambiar un caracter cambia el dibujo, sin editor de
+`arte/bicho.txt` es el dibujo: un caracter por pixel, cuadros de 32 x 26 que en
+pantalla se ven a escala 3, o sea 96 x 78 de los 240 x 135. Cambiar un caracter cambia el dibujo, sin editor de
 sprites y sin microSD. Hay cinco clips, y el nombre de cada uno importa porque
 el firmware los busca por ese nombre:
 
@@ -138,9 +138,20 @@ python3 herramientas/arte.py
 Eso regenera `src/ArteBicho.h` y las dos vistas previas. El GIF sirve para ver
 el movimiento sin flashear nada.
 
-El volumen no se hace con contorno negro sino con tres tonos: lomo oscuro,
-cuerpo medio y panza clara. A 32 x 20 un contorno en todo el borde se come la
-silueta.
+Cuatro cosas que costaron varios intentos y conviene no volver a probar:
+
+- **El alto del cuadro manda.** Con 20 filas, el cuerpo y las patas se comían
+  14 y a la cabeza le quedaban 6. Una cabeza con orejas en 6 filas se colapsa
+  en un triángulo, se dibuje como se dibuje. Con 26 filas la cabeza se lee.
+- **El cráneo arranca ancho y la oreja va corrida hacia atrás.** Si la oreja va
+  centrada encima de un cráneo que se ensancha fila a fila, el conjunto es un
+  cono. El escalón entre la oreja y el frente del cráneo es lo que lo convierte
+  en cabeza.
+- **La cola tiene que entrar varias filas dentro de la grupa.** Tocándola en un
+  solo pixel se lee como una barra flotando al lado del cuerpo.
+- **El volumen se sombrea siguiendo el contorno de cada columna**, no por
+  filas: los dos pixeles de más arriba oscuros y el de más abajo claro. Por
+  filas quedan franjas horizontales y el bicho parece un sándwich.
 
 ### Traer arte de fuera
 
@@ -153,7 +164,12 @@ python3 herramientas/arte.py importar hoja.png 32x20 > arte/bicho.txt
 La traduce al mismo formato de texto, un caracter por color. Pide PNG de 8 bits
 sin entrelazado y como máximo 14 colores, que es lo normal en pixel art. Después
 hay que poner a mano el nombre de clip de cada cuadro, porque eso el PNG no lo
-dice. **Antes de importar arte ajeno, revisa su licencia**: si no es propio ni
+dice.
+
+Ojo con qué hoja importas: una hoja **direccional**, de esas con el mismo
+personaje mirando hacia ocho lados, no sirve acá. Son poses sueltas, una por
+dirección, y lo que necesita este juego es un ciclo de cuadros de perfil. Lo
+que sirve es una hoja de animación. **Antes de importar arte ajeno, revisa su licencia**: si no es propio ni
 de licencia libre, el repo tiene que seguir privado.
 
 ## Qué está probado
@@ -162,7 +178,7 @@ Verificado de verdad:
 
 - El firmware compila completo contra M5Cardputer 1.1.0 y M5Unified 0.2.29, sin
   ninguna advertencia en nuestro código. Ocupa 24 KB de RAM estática (7,4 %) y
-  564 KB de flash (16,9 %), con los 14 cuadros de arte adentro, que son 4,5 KB.
+  565 KB de flash (16,9 %), con los 14 cuadros de arte adentro, que son 5,7 KB.
 - El GIF que genera `arte.py` lo decodifica `sips` y sale el cuadro correcto.
   Esa comprobación encontró un error real: el codificador LZW ensanchaba el
   código un paso antes de tiempo y el GIF salía en negro.
