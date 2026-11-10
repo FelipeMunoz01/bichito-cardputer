@@ -7,11 +7,8 @@ la flash, así que sigue siendo el mismo bicho después de apagarlo.
 ## Estado
 
 Sprint 1 terminado: núcleo del juego, pantalla, teclado, sonido y guardado.
-El núcleo está probado en el Mac, con 12 pruebas que pasan.
-
-El firmware todavía no se ha compilado contra las librerías reales de M5Stack,
-porque este Mac no tiene PlatformIO instalado. Lo que está verificado y lo que
-no está más abajo, en "Qué está probado".
+El firmware compila contra M5Cardputer y M5Unified reales, sin advertencias, y
+las 12 pruebas del núcleo pasan en el Mac. Falta probarlo en el equipo.
 
 ## Qué hay en la carpeta
 
@@ -39,25 +36,26 @@ hardware queda confinado a `src/`.
 
 ## Compilar y subir
 
-Hace falta PlatformIO, que en este Mac todavía no está:
+PlatformIO quedó instalado en un entorno virtual aparte, en `~/.venvs/platformio`.
+El Python de Homebrew rechaza instalar paquetes al sistema, y un entorno virtual
+dentro del proyecto se rompería porque el Escritorio está sincronizado con
+iCloud. Si hay que rehacerlo:
 
 ```bash
-python3 -m pip install --user platformio
+python3 -m venv ~/.venvs/platformio && ~/.venvs/platformio/bin/pip install platformio
 ```
 
-Después, con el Cardputer conectado por USB-C:
+Compilar y subir, con el Cardputer conectado por USB-C:
 
 ```bash
-pio run -e cardputer-adv -t upload && pio device monitor
+~/.venvs/platformio/bin/pio run -e cardputer-adv -t upload && ~/.venvs/platformio/bin/pio device monitor
 ```
 
-La primera compilación se baja la cadena de herramientas de Espressif, que son
-varios cientos de megas. Las siguientes son rápidas.
-
-Las pruebas del núcleo no necesitan el equipo ni la cadena de Espressif:
+Las pruebas del núcleo no necesitan el equipo ni la cadena de Espressif, y
+tardan unos segundos:
 
 ```bash
-pio test -e pruebas
+~/.venvs/platformio/bin/pio test -e pruebas
 ```
 
 ## Las teclas
@@ -125,21 +123,25 @@ dormido. Abajo el mismo cuerpo con la paleta de cada humor. La herramienta lee
 
 Verificado de verdad:
 
-- El núcleo compila con `clang++ -Wall -Wextra` sin advertencias.
+- El firmware compila completo contra M5Cardputer 1.1.0 y M5Unified 0.2.8, sin
+  una sola advertencia. Ocupa 24 KB de RAM estática (7,4 %) y 559 KB de flash
+  (16,7 %), así que sobra espacio para los sensores y lo que venga.
 - Las 12 pruebas de `test_bichito.cpp` pasan: eclosión, hambre, empacho, sueño
   con despertar automático, enfermedad por descuido, muerte por abandono,
   equivalencia entre cobrar de golpe y segundo a segundo, y ida y vuelta del
   guardado incluyendo el rechazo de versiones viejas.
 
-Todavía no verificado, hace falta el equipo:
+Todavía no verificado, hace falta el equipo encendido:
 
-- Que el firmware compile contra M5Cardputer y M5Unified reales.
-- La distribución exacta en los 240 x 135, y que ningún texto se salga.
+- La distribución exacta en los 240 x 135, y que ningún texto se salga. El
+  lienzo son 65 KB de heap, que el ESP32-S3 tiene de sobra, pero eso se
+  confirma recién al correrlo.
 - Que el teclado del ADV responda como espera `Entrada.cpp`. El ADV lleva un
   controlador I2C (TCA8418) en vez de la matriz GPIO del Cardputer original,
   por eso el `platformio.ini` exige M5Cardputer 1.1.0 o mayor y M5Unified
   0.2.8 o mayor, que ya detectan la placa solas.
 - Que el tono del altavoz salga por el codec ES8311.
+- Que la sincronización NTP ande, y con ella el cobro del tiempo apagado.
 
 ## Lo que falta
 
