@@ -6,6 +6,7 @@
 #include <M5Cardputer.h>
 
 #include "Almacen.h"
+#include "Animador.h"
 #include "Bichito.h"
 #include "Entrada.h"
 #include "Pantalla.h"
@@ -15,6 +16,7 @@ namespace {
 
 bichito::Bicho bicho;
 Pantalla       pantalla;
+Animador       animador;
 
 uint32_t ultimoTickMs     = 0;
 uint32_t ultimoGuardadoMs = 0;
@@ -102,9 +104,14 @@ void setup() {
         Serial.println("[bichito] sin hora real: solo cuenta el tiempo encendido");
     }
 
+    // La semilla sale del ruido del ADC, asi el bicho no corre siempre igual.
+    randomSeed(esp_random());
+    animador.inicializar(70);
+
     guardarAhora();
-    ultimoTickMs = millis();
-    pantalla.dibujar(bicho, millis());
+    ultimoTickMs = ultimoDibujoMs = millis();
+    animador.actualizar(bicho, 0);
+    pantalla.dibujar(bicho, animador, millis());
 }
 
 void loop() {
@@ -121,6 +128,11 @@ void loop() {
     } else if (p.accion != bichito::Accion::Ninguna) {
         if (bicho.aplicar(p.accion)) {
             pantalla.mensaje(textoDe(p.accion));
+            if (p.accion == bichito::Accion::Alimentar) {
+                animador.ponerseAComer(1600);
+            } else if (p.accion == bichito::Accion::Jugar) {
+                animador.correrUnRato(3000);
+            }
             sonar(true);
             guardarAhora();
         } else {
@@ -140,8 +152,10 @@ void loop() {
     }
 
     if (ahora - ultimoDibujoMs >= kDibujoMs) {
+        const uint32_t delta = ahora - ultimoDibujoMs;
         ultimoDibujoMs = ahora;
-        pantalla.dibujar(bicho, ahora);
+        animador.actualizar(bicho, delta);
+        pantalla.dibujar(bicho, animador, ahora);
     }
 
     delay(5);

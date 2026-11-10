@@ -5,24 +5,31 @@
 #include <M5Cardputer.h>
 
 #include "Bichito.h"
-#include "Sprites.h"
+
+class Animador;
 
 class Pantalla {
 public:
+    static constexpr int kAnchoPantalla = 240;
+    static constexpr int kAltoPantalla  = 135;
+    static constexpr int kEscala        = 3;   // el bicho es de 32 x 20
+    static constexpr int kSuelo         = 101; // donde apoya las patas
+
     void inicializar();
 
     // Aviso breve en la franja de abajo, pisa la ayuda de teclas por 1,5 s.
     void mensaje(const char* texto);
 
-    void dibujar(const bichito::Bicho& bicho, uint32_t ahoraMs);
+    void dibujar(const bichito::Bicho& bicho, const Animador& animador,
+                 uint32_t ahoraMs);
 
 private:
     void franjaSuperior(const bichito::Bicho& bicho);
     void franjaInferior(uint32_t ahoraMs);
+    void habitacion(const bichito::Bicho& bicho, const Animador& animador);
+    void bicho(const Animador& animador, bichito::Humor humor);
     void panelNecesidades(const bichito::Necesidades& n);
     void barra(int x, int y, float valor, const char* etiqueta);
-    void cuadro(const char* const* arte, int x0, int y0, int escala,
-                const sprites::Paleta& paleta);
 
     M5Canvas lienzo_{&M5Cardputer.Display};
     char     mensaje_[41] = {0};  // 40 caracteres es el ancho a 6 px por letra

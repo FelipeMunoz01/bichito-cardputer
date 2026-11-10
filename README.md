@@ -7,8 +7,12 @@ la flash, así que sigue siendo el mismo bicho después de apagarlo.
 ## Estado
 
 Sprint 1 terminado: núcleo del juego, pantalla, teclado, sonido y guardado.
-El firmware compila contra M5Cardputer y M5Unified reales, sin advertencias, y
-las 12 pruebas del núcleo pasan en el Mac. Falta probarlo en el equipo.
+El bicho está animado: 14 cuadros en cinco clips, y se pasea por la pantalla
+corriendo de un lado a otro. El firmware compila contra M5Cardputer y
+M5Unified reales y las 12 pruebas del núcleo pasan en el Mac. Falta probarlo
+en el equipo.
+
+![el bicho, cuadro por cuadro](arte/previa.png)
 
 ## Qué hay en la carpeta
 
@@ -16,10 +20,14 @@ las 12 pruebas del núcleo pasan en el Mac. Falta probarlo en el equipo.
 platformio.ini                   dos entornos: el equipo y las pruebas
 lib/nucleo/
   Bichito.h / Bichito.cpp        la lógica del juego, sin una línea de Arduino
+arte/
+  bicho.txt                      el dibujo, un caracter por pixel
+  previa.png / previa.gif        generados, para mirarlos sin flashear
 src/
   main.cpp                       arranque y bucle principal
   Pantalla.h / Pantalla.cpp      dibujo sobre un lienzo de 240 x 135
-  Sprites.h                      los cuadros del bicho, en arte ASCII
+  Animador.h / Animador.cpp      qué clip toca, dónde está y hacia dónde mira
+  ArteBicho.h                    GENERADO, no editar: sale de arte/bicho.txt
   Entrada.h / Entrada.cpp        teclado a acciones
   Almacen.h / Almacen.cpp        guardado en NVS
   Reloj.h / Reloj.cpp            hora por NTP, que aquí no es un detalle
@@ -27,7 +35,7 @@ src/
 test/test_nucleo/
   test_bichito.cpp               pruebas del núcleo, corren en el Mac
 herramientas/
-  vista_previa.py                dibuja los sprites en un PNG, sin flashear
+  arte.py                        bicho.txt a header, PNG y GIF; e importa PNG
 ```
 
 La separación importante es `lib/nucleo`: no incluye nada de Arduino, así que
@@ -100,32 +108,64 @@ Dos decisiones que conviene conocer antes de tocar el ritmo del juego:
 | Qué tan rápido da hambre | `Bichito.h`, `struct Ritmo` |
 | Cuándo nace, cuándo crece | `Bichito.h`, `namespace tiempos` |
 | Cuánto aguanta sin enfermarse | `Bichito.h`, `kDescuidoEnferma` |
-| El dibujo del bicho | `Sprites.h`, los cuadros son editables a mano |
-| Los colores de cada humor | `Pantalla.cpp`, `paletaPara` |
-| La distribución de la pantalla | `Pantalla.cpp`, `dibujar` |
+| El dibujo del bicho | `arte/bicho.txt`, y volver a correr `arte.py` |
+| El color de cada humor | `Pantalla.cpp`, `tintePara` |
+| Cuánto corre y a qué velocidad | `Animador.cpp`, las constantes de arriba |
+| La distribución de la pantalla | `Pantalla.cpp`, las constantes de `Pantalla` |
 | Las teclas | `Entrada.cpp` |
 
-Los sprites son arte ASCII de 16 x 16 que se dibuja a escala 5. Cambiar un
-caracter cambia el dibujo, sin herramientas y sin microSD. Para ver cómo quedó
-sin flashear:
+## El arte
+
+`arte/bicho.txt` es el dibujo: un caracter por pixel, cuadros de 32 x 20 que en
+pantalla se ven a escala 3. Cambiar un caracter cambia el dibujo, sin editor de
+sprites y sin microSD. Hay cinco clips, y el nombre de cada uno importa porque
+el firmware los busca por ese nombre:
+
+| Clip | Cuadros | Cuándo sale |
+|---|---|---|
+| `huevo` | 2 | los primeros 3 minutos de vida |
+| `quieto` | 2 | parado, respirando |
+| `corre` | 6 | cruzando la pantalla, o al jugar |
+| `come` | 2 | al darle de comer |
+| `duerme` | 2 | durmiendo, o muerto |
+
+Después de editar:
 
 ```bash
-python3 herramientas/vista_previa.py
+python3 herramientas/arte.py
 ```
 
-![los cuadros del bicho y una paleta por humor](vista_previa.png)
+Eso regenera `src/ArteBicho.h` y las dos vistas previas. El GIF sirve para ver
+el movimiento sin flashear nada.
 
-Arriba los cuadros de animación: huevo, quieto, respirando, parpadeando y
-dormido. Abajo el mismo cuerpo con la paleta de cada humor. La herramienta lee
-`src/Sprites.h` directamente, así que el arte no se puede desincronizar.
+El volumen no se hace con contorno negro sino con tres tonos: lomo oscuro,
+cuerpo medio y panza clara. A 32 x 20 un contorno en todo el borde se come la
+silueta.
+
+### Traer arte de fuera
+
+Si consigues una hoja de sprites mejor, no hay que tocar el firmware:
+
+```bash
+python3 herramientas/arte.py importar hoja.png 32x20 > arte/bicho.txt
+```
+
+La traduce al mismo formato de texto, un caracter por color. Pide PNG de 8 bits
+sin entrelazado y como máximo 14 colores, que es lo normal en pixel art. Después
+hay que poner a mano el nombre de clip de cada cuadro, porque eso el PNG no lo
+dice. **Antes de importar arte ajeno, revisa su licencia**: si no es propio ni
+de licencia libre, el repo tiene que seguir privado.
 
 ## Qué está probado
 
 Verificado de verdad:
 
-- El firmware compila completo contra M5Cardputer 1.1.0 y M5Unified 0.2.8, sin
-  una sola advertencia. Ocupa 24 KB de RAM estática (7,4 %) y 559 KB de flash
-  (16,7 %), así que sobra espacio para los sensores y lo que venga.
+- El firmware compila completo contra M5Cardputer 1.1.0 y M5Unified 0.2.29, sin
+  ninguna advertencia en nuestro código. Ocupa 24 KB de RAM estática (7,4 %) y
+  564 KB de flash (16,9 %), con los 14 cuadros de arte adentro, que son 4,5 KB.
+- El GIF que genera `arte.py` lo decodifica `sips` y sale el cuadro correcto.
+  Esa comprobación encontró un error real: el codificador LZW ensanchaba el
+  código un paso antes de tiempo y el GIF salía en negro.
 - Las 12 pruebas de `test_bichito.cpp` pasan: eclosión, hambre, empacho, sueño
   con despertar automático, enfermedad por descuido, muerte por abandono,
   equivalencia entre cobrar de golpe y segundo a segundo, y ida y vuelta del
@@ -133,9 +173,12 @@ Verificado de verdad:
 
 Todavía no verificado, hace falta el equipo encendido:
 
-- La distribución exacta en los 240 x 135, y que ningún texto se salga. El
-  lienzo son 65 KB de heap, que el ESP32-S3 tiene de sobra, pero eso se
-  confirma recién al correrlo.
+- La distribución exacta en los 240 x 135, que ningún texto se salga y que el
+  bicho no se escape por el borde. Las cuentas cuadran, pero eso se confirma
+  recién al correrlo. El lienzo son 65 KB de heap, que el ESP32-S3 tiene de
+  sobra.
+- Que dibujar 640 pixeles a escala 3 con `fillRect` dé los 20 cuadros por
+  segundo. Si va lento, el cambio es pasar a `pushImage` con un buffer.
 - Que el teclado del ADV responda como espera `Entrada.cpp`. El ADV lleva un
   controlador I2C (TCA8418) en vez de la matriz GPIO del Cardputer original,
   por eso el `platformio.ini` exige M5Cardputer 1.1.0 o mayor y M5Unified
@@ -156,6 +199,9 @@ qué hacer con pasos, caricias y ruido.
 **Sprint 3, lo social.** ESP-NOW entre dos Cardputers para que las mascotas se
 conozcan, o el emisor IR (pin G44) para lo mismo apuntando uno al otro.
 
-**Ideas sueltas.** Ponerle nombre en la primera partida; sprites desde la
-microSD en vez de arte ASCII; un cementerio con los bichos anteriores; diálogos
-por LLM cuando hay Wi-Fi.
+**El arte.** Lo que hay es decente y es propio, pero un ciclo de carrera
+dibujado por alguien que sepa se nota. El importador ya está hecho para eso.
+
+**Ideas sueltas.** Ponerle nombre en la primera partida; que el bicho reaccione
+al borde de la pantalla; un cementerio con los bichos anteriores; diálogos por
+LLM cuando hay Wi-Fi.
