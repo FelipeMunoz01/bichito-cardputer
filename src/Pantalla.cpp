@@ -17,11 +17,16 @@ struct Color {
     uint8_t r, g, b;
 };
 
-const Color kFondo  = {16, 20, 24};
-const Color kTenue  = {110, 120, 130};
-const Color kClaro  = {225, 230, 235};
-const Color kSombra = {30, 36, 42};
-const Color kPiso   = {44, 52, 60};
+const Color kFondo    = {16, 20, 24};    // las franjas de arriba y abajo
+const Color kTenue    = {110, 120, 130};
+const Color kClaro    = {225, 230, 235};
+const Color kSombra   = {30, 36, 42};
+
+// La habitacion va clara a proposito: el lobo es gris oscuro con contorno
+// negro y sobre fondo oscuro se perderia entero.
+const Color kCielo    = {140, 152, 168};
+const Color kPiso     = {96, 110, 92};
+const Color kSombraPie = {104, 116, 130};
 
 uint16_t c565(const Color& c) { return M5Cardputer.Display.color565(c.r, c.g, c.b); }
 
@@ -89,7 +94,7 @@ void Pantalla::bicho(const Animador& animador, Humor humor) {
     const uint8_t* datos = arte::kCuadros[animador.cuadro()];
     const int  x0 = animador.x();
     const int  y0 = kSuelo - arte::kAlto * kEscala;
-    const bool volteado = animador.mirandoIzquierda();
+    const bool volteado = animador.espejado();
 
     for (int f = 0; f < arte::kAlto; ++f) {
         for (int c = 0; c < arte::kAncho; ++c) {
@@ -105,17 +110,26 @@ void Pantalla::bicho(const Animador& animador, Humor humor) {
 }
 
 void Pantalla::habitacion(const Bicho& b, const Animador& animador) {
-    lienzo_.drawFastHLine(0, kSuelo + 1, kAnchoPantalla, c565(kPiso));
+    lienzo_.fillRect(0, 12, kAnchoPantalla, kSuelo - 10, c565(kCielo));
+    lienzo_.fillRect(0, kSuelo, kAnchoPantalla, 4, c565(kPiso));
+
+    const int centro = animador.x() + arte::kAncho * kEscala / 2;
 
     // Sombra bajo las patas, para que no quede flotando.
-    const int centro = animador.x() + arte::kAncho * kEscala / 2;
-    lienzo_.fillEllipse(centro, kSuelo + 1, 30, 3, c565(kSombra));
+    lienzo_.fillEllipse(centro, kSuelo + 1, 34, 3, c565(kSombraPie));
+
+    // El plato aparece mientras come: el paquete de arte no trae esa pose.
+    if (animador.comiendo()) {
+        const int px = centro + (animador.espejado() ? 34 : -34);
+        lienzo_.fillRect(px - 7, kSuelo - 4, 14, 4, c565(kSombra));
+        lienzo_.fillRect(px - 5, kSuelo - 6, 10, 2, c565(kTenue));
+    }
 
     bicho(animador, b.humor());
 
     if (b.durmiendo() && b.vivo()) {
-        textoCorto(lienzo_, centro + 34, 40, kTenue, "z");
-        textoCorto(lienzo_, centro + 41, 30, kTenue, "Z");
+        textoCorto(lienzo_, centro + 24, 40, kSombra, "z");
+        textoCorto(lienzo_, centro + 31, 30, kSombra, "Z");
     }
 }
 
@@ -185,6 +199,7 @@ void Pantalla::franjaInferior(uint32_t ahoraMs) {
 
 void Pantalla::dibujar(const Bicho& b, const Animador& animador, uint32_t ahoraMs) {
     lienzo_.fillSprite(c565(kFondo));
+
 
     habitacion(b, animador);
     franjaSuperior(b);

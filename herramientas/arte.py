@@ -398,45 +398,89 @@ def leer_png(ruta):
     return ancho, alto, pixeles
 
 
-def importar(ruta, ancho_cuadro, alto_cuadro):
-    ancho, alto, pixeles = leer_png(pathlib.Path(ruta))
-    cols = ancho // ancho_cuadro
-    filas = alto // alto_cuadro
-    if cols == 0 or filas == 0:
-        raise SystemExit(f"la hoja es de {ancho}x{alto}: no cabe un cuadro")
+def recorte_comun(cuadros, ancho, alto):
+    """Caja que encierra lo dibujado en TODOS los cuadros.
 
+    Tiene que ser la misma para todos: si cada cuadro se recorta a su medida,
+    la animacion salta en pantalla.
+    """
+    x0, y0, x1, y1 = ancho, alto, -1, -1
+    for pixeles in cuadros:
+        for y in range(alto):
+            for x in range(ancho):
+                if pixeles[y][x][3] >= 128:
+                    x0, y0 = min(x0, x), min(y0, y)
+                    x1, y1 = max(x1, x), max(y1, y)
+    if x1 < 0:
+        return 0, 0, ancho - 1, alto - 1
+    return x0, y0, x1, y1
+
+
+def cortar_hoja(ruta, ancho_cuadro, alto_cuadro, desde=None, hasta=None):
+    """Parte una hoja en cuadros. Devuelve una lista de matrices de pixeles."""
+    ancho, alto, pixeles = leer_png(pathlib.Path(ruta))
+    cols, filas = ancho // ancho_cuadro, alto // alto_cuadro
+    if cols == 0 or filas == 0:
+        raise SystemExit(f"{ruta}: es de {ancho}x{alto} y no cabe un cuadro de "
+                         f"{ancho_cuadro}x{alto_cuadro}")
+    cuadros = []
+    for f in range(filas):
+        for c in range(cols):
+            cuadros.append([
+                [pixeles[f * alto_cuadro + y][c * ancho_cuadro + x]
+                 for x in range(ancho_cuadro)]
+                for y in range(alto_cuadro)
+            ])
+    if desde is not None:
+        cuadros = cuadros[desde:(hasta + 1) if hasta is not None else desde + 1]
+    return cuadros
+
+
+def importar(pedidos, ancho_cuadro, alto_cuadro, recortar=True):
+    """pedidos: lista de (clip, ruta, desde, hasta). Devuelve el texto del arte."""
+    por_clip = [(clip, cortar_hoja(ruta, ancho_cuadro, alto_cuadro, desde, hasta))
+                for clip, ruta, desde, hasta in pedidos]
+
+    todos = [c for _, cuadros in por_clip for c in cuadros]
+    if recortar:
+        x0, y0, x1, y1 = recorte_comun(todos, ancho_cuadro, alto_cuadro)
+    else:
+        x0, y0, x1, y1 = 0, 0, ancho_cuadro - 1, alto_cuadro - 1
+    ancho, alto = x1 - x0 + 1, y1 - y0 + 1
+
+    letras = "oxbdenwmptgvyzr"
     vistos = {}
-    letras = "oxbdenwmptgvyz"
-    for fila in pixeles:
-        for r, g, b, al in fila:
-            if al < 128:
-                continue
-            vistos.setdefault((r, g, b), None)
+    for cuadro in todos:
+        for y in range(y0, y1 + 1):
+            for x in range(x0, x1 + 1):
+                r, g, b, al = cuadro[y][x]
+                if al >= 128:
+                    vistos.setdefault((r, g, b), None)
     if len(vistos) > len(letras):
         raise SystemExit(
-            f"la hoja usa {len(vistos)} colores y el maximo son {len(letras)}. "
-            "Reduce la paleta en tu editor de pixel art antes de importarla.")
+            f"las hojas usan {len(vistos)} colores y el maximo son {len(letras)}. "
+            "Reduce la paleta en un editor de pixel art antes de importarlas.")
     for n, color in enumerate(vistos):
         vistos[color] = letras[n]
 
     salida = [
-        f"# importado de {pathlib.Path(ruta).name}, cuadros de "
-        f"{ancho_cuadro}x{alto_cuadro}",
-        "# Pon los nombres de clip que correspondan en cada linea 'cuadro'.",
-        f"tamano: {ancho_cuadro} {alto_cuadro}",
+        "# GENERADO por herramientas/arte.py importar. Se puede editar a mano.",
+        f"# Cuadros de {ancho}x{alto}"
+        + (f", recortados de {ancho_cuadro}x{alto_cuadro}" if recortar else ""),
+        f"tamano: {ancho} {alto}",
         "fondo: 16 20 24",
     ]
     for color, letra in vistos.items():
         salida.append(f"color {letra}: {color[0]} {color[1]} {color[2]}")
     salida.append("")
 
-    for f in range(filas):
-        for c in range(cols):
-            salida.append("cuadro quieto 120")
-            for y in range(alto_cuadro):
+    for clip, cuadros in por_clip:
+        for cuadro in cuadros:
+            salida.append(f"cuadro {clip} 120")
+            for y in range(y0, y1 + 1):
                 linea = ""
-                for x in range(ancho_cuadro):
-                    r, g, b, al = pixeles[f * alto_cuadro + y][c * ancho_cuadro + x]
+                for x in range(x0, x1 + 1):
+                    r, g, b, al = cuadro[y][x]
                     linea += "." if al < 128 else vistos[(r, g, b)]
                 salida.append(linea)
             salida.append("")
@@ -445,10 +489,27 @@ def importar(ruta, ancho_cuadro, alto_cuadro):
 
 def main():
     if len(sys.argv) > 1 and sys.argv[1] == "importar":
-        if len(sys.argv) != 4 or "x" not in sys.argv[3]:
-            raise SystemExit("uso: arte.py importar <hoja.png> <ancho>x<alto>")
-        ancho, alto = (int(v) for v in sys.argv[3].split("x"))
-        print(importar(sys.argv[2], ancho, alto))
+        args = [a for a in sys.argv[2:] if not a.startswith("--")]
+        if len(args) < 2 or "x" not in args[0]:
+            raise SystemExit(
+                "uso: arte.py importar <ancho>x<alto> clip=hoja.png[:desde-hasta] ...\n"
+                "  ejemplo: arte.py importar 64x40 corre=Run.png quieto=Howl.png:0-1")
+        ancho, alto = (int(v) for v in args[0].split("x"))
+        pedidos = []
+        for pedido in args[1:]:
+            if "=" not in pedido:
+                raise SystemExit(f"{pedido!r}: falta el nombre de clip, como corre=Run.png")
+            clip, resto = pedido.split("=", 1)
+            desde = hasta = None
+            if ":" in resto:
+                resto, rango = resto.rsplit(":", 1)
+                if "-" in rango:
+                    desde, hasta = (int(v) for v in rango.split("-"))
+                else:
+                    desde = int(rango)
+            pedidos.append((clip, resto, desde, hasta))
+        print(importar(pedidos, ancho, alto,
+                       recortar="--sin-recortar" not in sys.argv))
         return
 
     a = leer(ORIGEN)

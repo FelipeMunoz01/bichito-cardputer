@@ -22,7 +22,12 @@ public:
 
     uint8_t cuadro() const;  // indice absoluto dentro de arte::kCuadros
     int     x() const { return static_cast<int>(x_); }
-    bool    mirandoIzquierda() const { return haciaIzquierda_; }
+
+    // El lobo del paquete esta dibujado mirando a la izquierda, asi que hay que
+    // espejarlo justo cuando camina hacia la derecha.
+    bool espejado() const { return !haciaIzquierda_; }
+
+    bool comiendo() const { return comiendoMs_ > 0; }
 
 private:
     void elegirClip(const bichito::Bicho& bicho, uint32_t deltaMs);
@@ -36,7 +41,8 @@ private:
     float    x_ = 0;
     float    destino_ = 0;
     bool     haciaIzquierda_ = false;
-    uint32_t esperaMs_ = 0;   // cuanto falta para que se le ocurra correr
+    uint32_t esperaMs_ = 0;   // cuanto falta para que se le ocurra moverse
     uint32_t comiendoMs_ = 0;
     uint32_t corriendoMs_ = 0;
+    uint32_t aullandoMs_ = 0;
 };

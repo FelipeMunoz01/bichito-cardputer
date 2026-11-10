@@ -10,8 +10,10 @@ namespace {
 constexpr float kIzquierda = 2.0f;
 constexpr float kDerecha   = Pantalla::kAnchoPantalla - arte::kAncho * Pantalla::kEscala - 2.0f;
 
-constexpr float kVelocidadNormal = 52.0f;  // pixeles por segundo
-constexpr float kVelocidadFloja  = 30.0f;
+constexpr float kVelocidadNormal = 54.0f;  // pixeles por segundo, corriendo
+constexpr float kVelocidadFloja  = 22.0f;  // caminando
+
+constexpr uint32_t kAullidoMs = 1500;
 
 // Cuanto se queda quieto antes de salir corriendo, segun como se sienta.
 constexpr uint32_t kEsperaAnimado = 2200;
@@ -65,23 +67,29 @@ void Animador::nuevoDestino() {
 }
 
 void Animador::elegirClip(const bichito::Bicho& bicho, uint32_t deltaMs) {
-    if (!bicho.vivo()) {
-        cambiarA(arte::kDuerme);  // tendido, que para el caso es lo mismo
+    // El paquete de arte no trae poses de comer ni de dormir. En vez de
+    // inventar uno que no calce con el estilo, esos estados usan el clip
+    // quieto y se distinguen por lo que dibuja Pantalla: el plato y los zZz.
+    if (!bicho.vivo() || bicho.durmiendo()) {
+        cambiarA(arte::kQuieto);
         destino_ = x_;
-        return;
-    }
-    if (bicho.durmiendo()) {
-        cambiarA(arte::kDuerme);
-        destino_ = x_;
+        aullandoMs_ = 0;
         return;
     }
     if (comiendoMs_ > 0) {
         comiendoMs_ = (comiendoMs_ > deltaMs) ? comiendoMs_ - deltaMs : 0;
-        cambiarA(arte::kCome);
+        cambiarA(arte::kQuieto);
+        destino_ = x_;
         return;
     }
     if (bicho.etapa() == bichito::Etapa::Huevo) {
-        cambiarA(arte::kQuieto);
+        cambiarA(arte::kHuevo);
+        destino_ = x_;
+        return;
+    }
+    if (aullandoMs_ > 0) {
+        aullandoMs_ = (aullandoMs_ > deltaMs) ? aullandoMs_ - deltaMs : 0;
+        cambiarA(arte::kAulla);
         destino_ = x_;
         return;
     }
@@ -97,23 +105,30 @@ void Animador::elegirClip(const bichito::Bicho& bicho, uint32_t deltaMs) {
         if (esperaMs_ > deltaMs) {
             esperaMs_ -= deltaMs;
         } else if (quiereMoverse(bicho.humor())) {
-            nuevoDestino();
+            // De cada tres impulsos, uno es para aullar en vez de moverse.
+            if (random(0, 3) == 0) {
+                aullandoMs_ = kAullidoMs;
+            } else {
+                nuevoDestino();
+            }
             esperaMs_ = (bicho.humor() == bichito::Humor::Contento)
                             ? kEsperaAnimado : kEsperaDecaido;
         } else {
             esperaMs_ = kEsperaDecaido;
         }
     } else {
-        cambiarA(arte::kCorre);
+        // Corre solo si anda contento; si no, camina.
+        cambiarA(bicho.humor() == bichito::Humor::Contento ? arte::kCorre
+                                                           : arte::kCamina);
     }
 }
 
 void Animador::actualizar(const bichito::Bicho& bicho, uint32_t deltaMs) {
     elegirClip(bicho, deltaMs);
 
-    if (clip_ == arte::kCorre) {
-        const float v = (bicho.humor() == bichito::Humor::Contento)
-                            ? kVelocidadNormal : kVelocidadFloja;
+    if (clip_ == arte::kCorre || clip_ == arte::kCamina) {
+        const float v = (clip_ == arte::kCorre) ? kVelocidadNormal
+                                                : kVelocidadFloja;
         const float paso = v * static_cast<float>(deltaMs) / 1000.0f;
         if (destino_ > x_) {
             x_ = (x_ + paso > destino_) ? destino_ : x_ + paso;

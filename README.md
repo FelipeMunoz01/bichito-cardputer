@@ -7,8 +7,8 @@ la flash, así que sigue siendo el mismo bicho después de apagarlo.
 ## Estado
 
 Sprint 1 terminado: núcleo del juego, pantalla, teclado, sonido y guardado.
-El bicho está animado: 14 cuadros en cinco clips, y se pasea por la pantalla
-corriendo de un lado a otro. El firmware compila contra M5Cardputer y
+La mascota es un lobo de pixel art con 28 cuadros en cinco clips, que camina,
+corre y aúlla paseándose por la pantalla. El firmware compila contra M5Cardputer y
 M5Unified reales y las 12 pruebas del núcleo pasan en el Mac. Falta probarlo
 en el equipo.
 
@@ -109,6 +109,7 @@ Dos decisiones que conviene conocer antes de tocar el ritmo del juego:
 | Cuándo nace, cuándo crece | `Bichito.h`, `namespace tiempos` |
 | Cuánto aguanta sin enfermarse | `Bichito.h`, `kDescuidoEnferma` |
 | El dibujo del bicho | `arte/bicho.txt`, y volver a correr `arte.py` |
+| Qué tan clara es la habitación | `Pantalla.cpp`, `kCielo` y `kPiso` |
 | El color de cada humor | `Pantalla.cpp`, `tintePara` |
 | Cuánto corre y a qué velocidad | `Animador.cpp`, las constantes de arriba |
 | La distribución de la pantalla | `Pantalla.cpp`, las constantes de `Pantalla` |
@@ -116,20 +117,13 @@ Dos decisiones que conviene conocer antes de tocar el ritmo del juego:
 
 ## El arte
 
-`arte/bicho.txt` es el dibujo: un caracter por pixel, cuadros de 32 x 26 que en
-pantalla se ven a escala 3, o sea 96 x 78 de los 240 x 135. Cambiar un caracter cambia el dibujo, sin editor de
-sprites y sin microSD. Hay cinco clips, y el nombre de cada uno importa porque
-el firmware los busca por ese nombre:
+El lobo es de **ScratchiO**, del paquete *Animated Wild Animals* de
+OpenGameArt, con licencia **CC0 de dominio público**. Las hojas originales
+están en `arte/origen/` junto con el detalle y el comando para reimportarlas.
 
-| Clip | Cuadros | Cuándo sale |
-|---|---|---|
-| `huevo` | 2 | los primeros 3 minutos de vida |
-| `quieto` | 2 | parado, respirando |
-| `corre` | 6 | cruzando la pantalla, o al jugar |
-| `come` | 2 | al darle de comer |
-| `duerme` | 2 | durmiendo, o muerto |
-
-Después de editar:
+`arte/bicho.txt` es el arte ya convertido: un caracter por pixel, cuadros de
+54 x 35 que en pantalla se ven a escala 2, o sea 108 x 70 de los 240 x 135.
+Se puede editar a mano. Después de tocarlo:
 
 ```bash
 python3 herramientas/arte.py
@@ -138,39 +132,47 @@ python3 herramientas/arte.py
 Eso regenera `src/ArteBicho.h` y las dos vistas previas. El GIF sirve para ver
 el movimiento sin flashear nada.
 
-Cuatro cosas que costaron varios intentos y conviene no volver a probar:
+| Clip | Cuadros | Cuándo sale |
+|---|---|---|
+| `huevo` | 2 | los primeros 3 minutos de vida |
+| `quieto` | 2 | parado, y también comiendo, durmiendo o muerto |
+| `camina` | 8 | cruzando la pantalla sin ganas |
+| `corre` | 6 | cruzando la pantalla contento, o al jugar |
+| `aulla` | 10 | de vez en cuando, estando quieto |
 
-- **El alto del cuadro manda.** Con 20 filas, el cuerpo y las patas se comían
-  14 y a la cabeza le quedaban 6. Una cabeza con orejas en 6 filas se colapsa
-  en un triángulo, se dibuje como se dibuje. Con 26 filas la cabeza se lee.
-- **El cráneo arranca ancho y la oreja va corrida hacia atrás.** Si la oreja va
-  centrada encima de un cráneo que se ensancha fila a fila, el conjunto es un
-  cono. El escalón entre la oreja y el frente del cráneo es lo que lo convierte
-  en cabeza.
-- **La cola tiene que entrar varias filas dentro de la grupa.** Tocándola en un
-  solo pixel se lee como una barra flotando al lado del cuerpo.
-- **El volumen se sombrea siguiendo el contorno de cada columna**, no por
-  filas: los dos pixeles de más arriba oscuros y el de más abajo claro. Por
-  filas quedan franjas horizontales y el bicho parece un sándwich.
+Tres cosas que conviene saber antes de tocar el arte:
 
-### Traer arte de fuera
+- **El paquete no trae poses de comer ni de dormir.** Esos estados usan el clip
+  `quieto` y se distinguen por lo que dibuja la pantalla: un plato a los pies
+  mientras come, y los zZz con la paleta teñida de azul mientras duerme.
+  Inventar esas dos poses a mano quedaría fuera de estilo; lo limpio sería
+  conseguirlas dibujadas por alguien.
+- **La habitación va clara a propósito.** El lobo es gris oscuro con contorno
+  negro y sobre el fondo casi negro de las franjas se perdía entero.
+- **El lobo está dibujado mirando a la izquierda.** Por eso `Animador::espejado()`
+  devuelve verdadero justo cuando camina hacia la derecha.
 
-Si consigues una hoja de sprites mejor, no hay que tocar el firmware:
+El huevo sí está dibujado a mano, con dos tonos claros propios, porque la
+paleta del lobo es toda oscura y un huevo negro no se entiende.
+
+### Traer otra hoja de sprites
+
+El importador acepta varias hojas de una vez, cada una con su nombre de clip,
+y recorta el margen vacío que comparten todos los cuadros:
 
 ```bash
-python3 herramientas/arte.py importar hoja.png 32x20 > arte/bicho.txt
+python3 herramientas/arte.py importar 64x40 \
+  quieto=Howl.png:0-1 camina=Walk.png corre=Run.png
 ```
 
-La traduce al mismo formato de texto, un caracter por color. Pide PNG de 8 bits
-sin entrelazado y como máximo 14 colores, que es lo normal en pixel art. Después
-hay que poner a mano el nombre de clip de cada cuadro, porque eso el PNG no lo
-dice.
+El `:0-1` elige un rango de cuadros de esa hoja. El recorte usa **una sola
+caja para todos los cuadros**: si cada uno se recortara a su medida, la
+animación saltaría en pantalla.
 
-Ojo con qué hoja importas: una hoja **direccional**, de esas con el mismo
-personaje mirando hacia ocho lados, no sirve acá. Son poses sueltas, una por
-dirección, y lo que necesita este juego es un ciclo de cuadros de perfil. Lo
-que sirve es una hoja de animación. **Antes de importar arte ajeno, revisa su licencia**: si no es propio ni
-de licencia libre, el repo tiene que seguir privado.
+Pide PNG de 8 bits sin entrelazado y como máximo 15 colores, que es lo normal
+en pixel art. Una hoja **direccional**, de esas con el mismo personaje mirando
+hacia ocho lados, no sirve: son poses sueltas y lo que necesita este juego es
+un ciclo de cuadros de perfil.
 
 ## Qué está probado
 
@@ -178,7 +180,7 @@ Verificado de verdad:
 
 - El firmware compila completo contra M5Cardputer 1.1.0 y M5Unified 0.2.29, sin
   ninguna advertencia en nuestro código. Ocupa 24 KB de RAM estática (7,4 %) y
-  565 KB de flash (16,9 %), con los 14 cuadros de arte adentro, que son 5,7 KB.
+  586 KB de flash (17,5 %), con los 28 cuadros de arte adentro, que son 26 KB.
 - El GIF que genera `arte.py` lo decodifica `sips` y sale el cuadro correcto.
   Esa comprobación encontró un error real: el codificador LZW ensanchaba el
   código un paso antes de tiempo y el GIF salía en negro.
@@ -215,8 +217,9 @@ qué hacer con pasos, caricias y ruido.
 **Sprint 3, lo social.** ESP-NOW entre dos Cardputers para que las mascotas se
 conozcan, o el emisor IR (pin G44) para lo mismo apuntando uno al otro.
 
-**El arte.** Lo que hay es decente y es propio, pero un ciclo de carrera
-dibujado por alguien que sepa se nota. El importador ya está hecho para eso.
+**Las dos poses que faltan.** Comer y dormir se resuelven hoy con señales en
+pantalla. Si aparece una hoja con esas poses en el mismo estilo, entran por el
+importador sin tocar el firmware.
 
 **Ideas sueltas.** Ponerle nombre en la primera partida; que el bicho reaccione
 al borde de la pantalla; un cementerio con los bichos anteriores; diálogos por
