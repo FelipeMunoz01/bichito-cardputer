@@ -14,10 +14,18 @@ constexpr uint32_t kIntervaloEscuchaMs = 350;
 constexpr size_t   kMuestrasAudio = 256;
 constexpr uint32_t kFrecuenciaAudio = 16000;
 
-// Umbral de palmada, en RMS de muestras de 16 bits. Está puesto a ojo porque
-// no se pudo medir en el equipo: el monitor serie imprime el nivel real cada
-// pocos segundos para poder ajustarlo.
-constexpr uint16_t kUmbralRuido = 3500;
+// Umbral relativo en vez de un numero fijo. Medido en el equipo, el fondo de
+// una pieza tranquila da un RMS de 7 a 16 y una palmada pasa de 150. Pero ese
+// "7 a 16" es de esa pieza: en la calle o con musica el fondo sube y un umbral
+// fijo se dispararia solo. Asi que se sigue el nivel de fondo y se dispara
+// cuando algo lo supera por mucho.
+constexpr float kFactorRuido = 5.0f;   // cuantas veces el fondo
+constexpr float kMargenRuido = 80.0f;  // y ademas este salto minimo
+
+// El fondo sube despacio y baja rapido: un ruido corto casi no lo mueve, pero
+// si el ambiente se pone ruidoso de verdad, el detector se acostumbra.
+constexpr float kSubeFondo = 0.05f;
+constexpr float kBajaFondo = 0.20f;
 
 int16_t audio[kMuestrasAudio];
 
@@ -58,7 +66,11 @@ void Sensores::escuchar(uint32_t ahoraMs) {
     // La grabación anterior ya terminó: se mide y se pide la siguiente.
     nivel_ = rms(audio, kMuestrasAudio);
     if (nivel_ > pico_) pico_ = nivel_;
-    if (nivel_ > kUmbralRuido) ruidoPendiente_ = true;
+
+    if (fondo_ < 0.0f) fondo_ = nivel_;  // primera medicion
+    const float umbral = fondo_ * kFactorRuido + kMargenRuido;
+    if (nivel_ > umbral) ruidoPendiente_ = true;
+    fondo_ += (nivel_ > fondo_ ? kSubeFondo : kBajaFondo) * (nivel_ - fondo_);
 
     proximaEscuchaMs_ = ahoraMs + kIntervaloEscuchaMs;
     M5Cardputer.Mic.record(audio, kMuestrasAudio, kFrecuenciaAudio);

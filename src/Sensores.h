@@ -41,6 +41,7 @@ public:
     // valor suelto casi nunca la pilla.
     uint16_t ultimoNivel() const { return nivel_; }
     uint16_t picoNivel() const { return pico_; }
+    uint16_t fondoNivel() const { return fondo_ < 0 ? 0 : static_cast<uint16_t>(fondo_); }
     void     olvidarPico() { pico_ = 0; }
 
 private:
@@ -60,4 +61,5 @@ private:
     uint32_t proximaEscuchaMs_ = 0;
     uint16_t nivel_ = 0;
     uint16_t pico_ = 0;
+    float    fondo_ = -1.0f;  // negativo = todavia no se midio nada
 };

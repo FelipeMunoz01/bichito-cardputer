@@ -175,9 +175,10 @@ void loop() {
     // aplaudir, y ajustar kUmbralRuido en Sensores.cpp con lo que se vea.
     if (ahora - ultimoInformeMs >= kInformeMs) {
         ultimoInformeMs = ahora;
-        Serial.printf("[sensores] pasos %lu  ruido ahora %u  pico %u\n",
+        Serial.printf("[sensores] pasos %lu  ruido %u  pico %u  fondo %u\n",
                       static_cast<unsigned long>(sensores.pasosTotales()),
-                      sensores.ultimoNivel(), sensores.picoNivel());
+                      sensores.ultimoNivel(), sensores.picoNivel(),
+                      sensores.fondoNivel());
         sensores.olvidarPico();
     }
 

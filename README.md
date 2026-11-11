@@ -120,17 +120,22 @@ se porta mal, hay un escape de una línea en `Sensores.h`:
 
 Con eso el micrófono queda fuera y todo lo demás sigue igual.
 
-### Calibrar el umbral de palmada
+### El umbral de ruido se calibra solo
 
-`kUmbralRuido` en `Sensores.cpp` está puesto a ojo, porque no se pudo medir sin
-el equipo. El monitor serie imprime el nivel real cada 10 segundos:
+No hay número fijo que ajustar. El detector sigue el nivel de fondo y dispara
+cuando algo lo supera por mucho: `fondo x 5 + 80`. El fondo sube despacio y
+baja rápido, así que un ruido corto casi no lo mueve, pero si el ambiente se
+pone ruidoso de verdad el detector se acostumbra en vez de dispararse solo.
+
+Medido en el equipo: una pieza tranquila da un RMS de fondo de **5 a 16**, con
+picos sueltos de hasta 64 que no llegan a disparar. Una palmada a medio metro
+midió **513**, contra un umbral de unos 120 en ese momento. Margen de sobra.
+
+El monitor serie imprime los cuatro números por si hace falta mirarlos:
 
 ```
-[sensores] pasos 1240  ruido 820
+[sensores] pasos 10  ruido 94  pico 513  fondo 36
 ```
-
-Deja el monitor abierto, aplaude, mira a cuánto sube, y pon el umbral a medio
-camino entre el silencio y la palmada.
 
 ## Cómo pasa el tiempo
 
@@ -231,7 +236,19 @@ un ciclo de cuadros de perfil.
 
 ## Qué está probado
 
-Verificado de verdad:
+Verificado **en el equipo**, con el Cardputer conectado:
+
+- Arranca y dibuja bien: `[pantalla]` da 240 x 135 y la distribución completa
+  se ve derecha, con el lobo, las cuatro barras y la ayuda de teclas.
+- `[sensores] IMU lista` y `microfono listo`: los dos sensores arrancan, lo que
+  de paso valida que soltar el altavoz para tomar el micrófono funciona.
+- El acelerómetro cuenta al moverlo y **se queda quieto en reposo**: 35 s sobre
+  la mesa sin sumar un solo paso falso.
+- El micrófono detecta una palmada con margen amplio, 513 contra un umbral de
+  unos 120.
+- El estado sobrevive al reflasheo: `estado recuperado, edad 390s`.
+
+Verificado en el Mac:
 
 - El firmware compila completo contra M5Cardputer 1.1.0 y M5Unified 0.2.29, sin
   ninguna advertencia en nuestro código. Ocupa 24 KB de RAM estática (7,4 %) y
@@ -260,12 +277,11 @@ Todavía no verificado, hace falta el equipo encendido:
   controlador I2C (TCA8418) en vez de la matriz GPIO del Cardputer original,
   por eso el `platformio.ini` exige M5Cardputer 1.1.0 o mayor y M5Unified
   0.2.8 o mayor, que ya detectan la placa solas.
-- Que el tono del altavoz salga por el codec ES8311.
-- **Todo lo de los sensores contra hardware real.** Que `M5.Imu` esté habilitada
-  en el ADV, que la magnitud del BMI270 se parezca a las señales con que se
-  probó, y sobre todo el baile de soltar y retomar el audio entre el altavoz y
-  el micrófono. La lógica está probada; el cable no.
-- El valor de `kUmbralRuido`, que hay que calibrar con el monitor serie.
+- Que el tono del altavoz salga por el codec ES8311, y que el baile de soltar
+  y retomar el audio entre altavoz y micrófono no deje a ninguno mudo.
+- Un paseo largo de verdad: lo que se midió fue el equipo manipulado en la
+  mano, no treinta pasos caminando.
+- La sincronización NTP, que necesita `secretos.h` con una red configurada.
 - Que la sincronización NTP ande, y con ella el cobro del tiempo apagado.
 
 ## Lo que falta
