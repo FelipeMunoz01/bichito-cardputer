@@ -21,12 +21,13 @@ public:
     void mensaje(const char* texto);
 
     void dibujar(const bichito::Bicho& bicho, const Animador& animador,
-                 uint32_t ahoraMs);
+                 uint32_t pasos, uint32_t ahoraMs);
 
 private:
     void franjaSuperior(const bichito::Bicho& bicho);
     void franjaInferior(uint32_t ahoraMs);
-    void habitacion(const bichito::Bicho& bicho, const Animador& animador);
+    void habitacion(const bichito::Bicho& bicho, const Animador& animador,
+                    uint32_t pasos);
     void bicho(const Animador& animador, bichito::Humor humor);
     void panelNecesidades(const bichito::Necesidades& n);
     void barra(int x, int y, float valor, const char* etiqueta);

@@ -11,31 +11,34 @@
 #include "Entrada.h"
 #include "Pantalla.h"
 #include "Reloj.h"
+#include "Sensores.h"
 
 namespace {
 
 bichito::Bicho bicho;
 Pantalla       pantalla;
 Animador       animador;
+Sensores       sensores;
+
+// El altavoz y el microfono no pueden estar encendidos a la vez. Cuando suena
+// un tono se suelta el microfono y se vuelve a tomar pasado este momento.
+uint32_t audioDeVueltaMs = 0;
 
 uint32_t ultimoTickMs     = 0;
 uint32_t ultimoGuardadoMs = 0;
 uint32_t ultimoDibujoMs   = 0;
+uint32_t ultimoInformeMs  = 0;
 
 constexpr uint32_t kTickMs      = 1000;   // el nucleo avanza de segundo en segundo
 constexpr uint32_t kGuardadoMs  = 30000;  // y se guarda cada medio minuto
 constexpr uint32_t kDibujoMs    = 50;     // 20 cuadros por segundo
+constexpr uint32_t kInformeMs   = 10000;  // nivel de ruido al monitor serie
 
 void sonar(bool bien) {
     // El ADV usa el codec ES8311. M5Unified 0.2.8 o mayor ya lo configura solo.
+    sensores.soltarAudio();
     M5Cardputer.Speaker.tone(bien ? 1200 : 300, bien ? 70 : 120);
-}
-
-// Aqui entra el sprint 2. El BMI270 vive en M5Cardputer.Imu y el microfono en
-// M5Cardputer.Mic: pasos para subir el animo, agiton para caricia, palmada
-// para ruido. Mientras devuelva vacio, el juego corre solo con el reloj.
-bichito::Estimulos estimulosDelMundo() {
-    return bichito::Estimulos{};
+    audioDeVueltaMs = millis() + 300;
 }
 
 const char* textoDe(bichito::Accion a) {
@@ -86,6 +89,7 @@ void setup() {
 
     Serial.begin(115200);
     pantalla.inicializar();
+    sensores.inicializar();
 
     // Primero la hora, porque de ella depende saber cuanto estuvo apagado.
     reloj::inicializar();
@@ -111,12 +115,18 @@ void setup() {
     guardarAhora();
     ultimoTickMs = ultimoDibujoMs = millis();
     animador.actualizar(bicho, 0);
-    pantalla.dibujar(bicho, animador, millis());
+    pantalla.dibujar(bicho, animador, sensores.pasosTotales(), millis());
 }
 
 void loop() {
     M5Cardputer.update();
     const uint32_t ahora = millis();
+
+    sensores.actualizar(ahora);
+    if (audioDeVueltaMs != 0 && ahora >= audioDeVueltaMs) {
+        sensores.retomarAudio();
+        audioDeVueltaMs = 0;
+    }
 
     const entrada::Pulsacion p = entrada::leer(bicho.durmiendo());
     if (p.reiniciar) {
@@ -144,18 +154,37 @@ void loop() {
     if (ahora - ultimoTickMs >= kTickMs) {
         const uint32_t segundos = (ahora - ultimoTickMs) / kTickMs;
         ultimoTickMs += segundos * kTickMs;
-        bicho.avanzar(segundos, estimulosDelMundo());
+
+        const bichito::Estimulos mundo = sensores.tomar();
+        bicho.avanzar(segundos, mundo);
+
+        if (mundo.caricia && bicho.vivo() && !bicho.durmiendo()) {
+            pantalla.mensaje("le gusto que lo movieras");
+            animador.correrUnRato(2500);
+        } else if (mundo.ruido && bicho.vivo()) {
+            pantalla.mensaje("se asusto con el ruido");
+        }
     }
 
     if (ahora - ultimoGuardadoMs >= kGuardadoMs) {
         guardarAhora();
     }
 
+    // El umbral de palmada esta puesto a ojo porque no se pudo medir en el
+    // equipo. Esta linea imprime el nivel real: dejar el monitor abierto,
+    // aplaudir, y ajustar kUmbralRuido en Sensores.cpp con lo que se vea.
+    if (ahora - ultimoInformeMs >= kInformeMs) {
+        ultimoInformeMs = ahora;
+        Serial.printf("[sensores] pasos %lu  ruido %u\n",
+                      static_cast<unsigned long>(sensores.pasosTotales()),
+                      sensores.ultimoNivel());
+    }
+
     if (ahora - ultimoDibujoMs >= kDibujoMs) {
         const uint32_t delta = ahora - ultimoDibujoMs;
         ultimoDibujoMs = ahora;
         animador.actualizar(bicho, delta);
-        pantalla.dibujar(bicho, animador, ahora);
+        pantalla.dibujar(bicho, animador, sensores.pasosTotales(), ahora);
     }
 
     delay(5);

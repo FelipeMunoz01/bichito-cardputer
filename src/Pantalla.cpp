@@ -109,7 +109,8 @@ void Pantalla::bicho(const Animador& animador, Humor humor) {
     }
 }
 
-void Pantalla::habitacion(const Bicho& b, const Animador& animador) {
+void Pantalla::habitacion(const Bicho& b, const Animador& animador,
+                          uint32_t pasos) {
     lienzo_.fillRect(0, 12, kAnchoPantalla, kSuelo - 10, c565(kCielo));
     lienzo_.fillRect(0, kSuelo, kAnchoPantalla, 4, c565(kPiso));
 
@@ -130,6 +131,14 @@ void Pantalla::habitacion(const Bicho& b, const Animador& animador) {
     if (b.durmiendo() && b.vivo()) {
         textoCorto(lienzo_, centro + 24, 40, kSombra, "z");
         textoCorto(lienzo_, centro + 31, 30, kSombra, "Z");
+    }
+
+    // Los pasos del IMU, en la esquina libre de la habitacion.
+    if (b.etapa() != Etapa::Huevo) {
+        char texto[20];
+        snprintf(texto, sizeof(texto), "%lu pasos",
+                 static_cast<unsigned long>(pasos));
+        textoCorto(lienzo_, 4, 16, kSombra, texto);
     }
 }
 
@@ -197,11 +206,11 @@ void Pantalla::franjaInferior(uint32_t ahoraMs) {
                "A:comer L:lavar J:jugar D:dormir M:curar");
 }
 
-void Pantalla::dibujar(const Bicho& b, const Animador& animador, uint32_t ahoraMs) {
+void Pantalla::dibujar(const Bicho& b, const Animador& animador, uint32_t pasos,
+                       uint32_t ahoraMs) {
     lienzo_.fillSprite(c565(kFondo));
 
-
-    habitacion(b, animador);
+    habitacion(b, animador, pasos);
     franjaSuperior(b);
 
     if (b.etapa() == Etapa::Huevo) {

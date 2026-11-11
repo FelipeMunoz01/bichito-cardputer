@@ -6,9 +6,10 @@ la flash, así que sigue siendo el mismo bicho después de apagarlo.
 
 ## Estado
 
-Sprint 1 terminado: núcleo del juego, pantalla, teclado, sonido y guardado.
-La mascota es un lobo de pixel art con 28 cuadros en cinco clips, que camina,
-corre y aúlla paseándose por la pantalla. El firmware compila contra M5Cardputer y
+Sprints 1 y 2 terminados. La mascota es un lobo de pixel art con 28 cuadros en
+cinco clips, que camina, corre y aúlla paseándose por la pantalla, y que
+**reacciona al mundo real**: cuenta tus pasos con el acelerómetro, nota cuando
+agitas el equipo y se asusta con los ruidos fuertes. El firmware compila contra M5Cardputer y
 M5Unified reales y las 12 pruebas del núcleo pasan en el Mac. Falta probarlo
 en el equipo.
 
@@ -20,6 +21,7 @@ en el equipo.
 platformio.ini                   dos entornos: el equipo y las pruebas
 lib/nucleo/
   Bichito.h / Bichito.cpp        la lógica del juego, sin una línea de Arduino
+  Movimiento.h / .cpp            contador de pasos y detector de agitón
 arte/
   bicho.txt                      el dibujo, un caracter por pixel
   previa.png / previa.gif        generados, para mirarlos sin flashear
@@ -29,11 +31,14 @@ src/
   Animador.h / Animador.cpp      qué clip toca, dónde está y hacia dónde mira
   ArteBicho.h                    GENERADO, no editar: sale de arte/bicho.txt
   Entrada.h / Entrada.cpp        teclado a acciones
+  Sensores.h / Sensores.cpp      BMI270 y micrófono, enchufados al núcleo
   Almacen.h / Almacen.cpp        guardado en NVS
   Reloj.h / Reloj.cpp            hora por NTP, que aquí no es un detalle
   secretos.ejemplo.h             plantilla para los datos de tu red
 test/test_nucleo/
   test_bichito.cpp               pruebas del núcleo, corren en el Mac
+test/test_movimiento/
+  test_movimiento.cpp            pruebas de pasos y agitón, con señales falsas
 herramientas/
   arte.py                        bicho.txt a header, PNG y GIF; e importa PNG
 ```
@@ -80,6 +85,53 @@ tardan unos segundos:
 Cuando una acción no corresponde, por ejemplo darle de comer dormido o jugar
 sin energía, suena un tono grave y aparece el aviso abajo.
 
+## Los sensores
+
+El acelerómetro y el micrófono alimentan los `Estimulos` que el núcleo ya sabía
+consumir desde el sprint 1:
+
+| Qué pasa | Qué detecta | Qué le hace al bicho |
+|---|---|---|
+| Caminas con el equipo encima | picos rítmicos en el BMI270 | le sube el ánimo, un poco por paso |
+| Agitas el equipo | vaivén fuerte, 4 cambios de sentido en 700 ms | lo toma como cariño y sale corriendo |
+| Ruido fuerte cerca | RMS del micrófono sobre el umbral | lo asusta, le baja el ánimo y lo despierta |
+
+La parte difícil no es leer el sensor sino decidir qué es un paso. Esa lógica
+está en `lib/nucleo/Movimiento.h`, sin Arduino, y se prueba en el Mac con
+señales sintéticas a 100 Hz. Dos decisiones que las pruebas dejan fijas:
+
+- **Un pico suelto no es un paso.** Hay que encadenar tres con un ritmo
+  creíble antes de empezar a sumar. Si no, dejar el equipo en la mesa y darle
+  un golpe contaría pasos.
+- **Caminar no es un agitón, y un tirón suelto tampoco.** El agitón exige
+  cambios de sentido repetidos, y después se enfría 1,2 s para no contar diez
+  veces el mismo.
+
+### El altavoz y el micrófono no caben juntos
+
+Comparten el bus de audio del ES8311, y M5Unified deja encendido solo uno. Por
+eso `sonar()` suelta el micrófono, hace sonar el tono y lo vuelve a tomar 300 ms
+después. **Esto es lo menos verificado de todo el proyecto.** Si en el equipo
+se porta mal, hay un escape de una línea en `Sensores.h`:
+
+```cpp
+#define BICHITO_CON_MICROFONO 0
+```
+
+Con eso el micrófono queda fuera y todo lo demás sigue igual.
+
+### Calibrar el umbral de palmada
+
+`kUmbralRuido` en `Sensores.cpp` está puesto a ojo, porque no se pudo medir sin
+el equipo. El monitor serie imprime el nivel real cada 10 segundos:
+
+```
+[sensores] pasos 1240  ruido 820
+```
+
+Deja el monitor abierto, aplaude, mira a cuánto sube, y pon el umbral a medio
+camino entre el silencio y la palmada.
+
 ## Cómo pasa el tiempo
 
 El Cardputer ADV no tiene RTC, y esto es lo que condiciona el diseño. El estado
@@ -114,6 +166,9 @@ Dos decisiones que conviene conocer antes de tocar el ritmo del juego:
 | Cuánto corre y a qué velocidad | `Animador.cpp`, las constantes de arriba |
 | La distribución de la pantalla | `Pantalla.cpp`, las constantes de `Pantalla` |
 | Las teclas | `Entrada.cpp` |
+| Qué tan fácil cuenta un paso | `Movimiento.h`, `ContadorPasos::Ajustes` |
+| Qué tan fuerte hay que agitar | `Movimiento.h`, `DetectorSacudida::Ajustes` |
+| El umbral de palmada | `Sensores.cpp`, `kUmbralRuido` |
 
 ## El arte
 
@@ -180,14 +235,18 @@ Verificado de verdad:
 
 - El firmware compila completo contra M5Cardputer 1.1.0 y M5Unified 0.2.29, sin
   ninguna advertencia en nuestro código. Ocupa 24 KB de RAM estática (7,4 %) y
-  586 KB de flash (17,5 %), con los 28 cuadros de arte adentro, que son 26 KB.
+  592 KB de flash (17,7 %), con los 28 cuadros de arte adentro, que son 26 KB.
 - El GIF que genera `arte.py` lo decodifica `sips` y sale el cuadro correcto.
   Esa comprobación encontró un error real: el codificador LZW ensanchaba el
   código un paso antes de tiempo y el GIF salía en negro.
-- Las 12 pruebas de `test_bichito.cpp` pasan: eclosión, hambre, empacho, sueño
-  con despertar automático, enfermedad por descuido, muerte por abandono,
-  equivalencia entre cobrar de golpe y segundo a segundo, y ida y vuelta del
-  guardado incluyendo el rechazo de versiones viejas.
+- **22 pruebas pasan** en el Mac. Las 12 de `test_bichito.cpp`: eclosión,
+  hambre, empacho, sueño con despertar automático, enfermedad por descuido,
+  muerte por abandono, equivalencia entre cobrar de golpe y segundo a segundo,
+  y ida y vuelta del guardado incluyendo el rechazo de versiones viejas. Las 10
+  de `test_movimiento.cpp`: cuenta caminata a distintas frecuencias, ignora un
+  golpe suelto, ignora picos demasiado lentos, ignora un cambio de inclinación,
+  detecta el agitón sin confundirlo con caminar, y el enfriamiento evita contar
+  el mismo agitón dos veces.
 
 Todavía no verificado, hace falta el equipo encendido:
 
@@ -202,17 +261,14 @@ Todavía no verificado, hace falta el equipo encendido:
   por eso el `platformio.ini` exige M5Cardputer 1.1.0 o mayor y M5Unified
   0.2.8 o mayor, que ya detectan la placa solas.
 - Que el tono del altavoz salga por el codec ES8311.
+- **Todo lo de los sensores contra hardware real.** Que `M5.Imu` esté habilitada
+  en el ADV, que la magnitud del BMI270 se parezca a las señales con que se
+  probó, y sobre todo el baile de soltar y retomar el audio entre el altavoz y
+  el micrófono. La lógica está probada; el cable no.
+- El valor de `kUmbralRuido`, que hay que calibrar con el monitor serie.
 - Que la sincronización NTP ande, y con ella el cobro del tiempo apagado.
 
 ## Lo que falta
-
-**Sprint 2, los sensores.** Es donde deja de parecer una demo. El hueco ya está
-hecho: `estimulosDelMundo()` en `main.cpp` devuelve vacío y el núcleo ya sabe
-qué hacer con pasos, caricias y ruido.
-
-- BMI270 por `M5Cardputer.Imu`: contar pasos para subir el ánimo, detectar el
-  agitón como caricia.
-- Micrófono por `M5Cardputer.Mic`: una palmada lo despierta y lo asusta.
 
 **Sprint 3, lo social.** ESP-NOW entre dos Cardputers para que las mascotas se
 conozcan, o el emisor IR (pin G44) para lo mismo apuntando uno al otro.
