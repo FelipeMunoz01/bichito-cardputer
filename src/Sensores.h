@@ -36,8 +36,12 @@ public:
     bool     hayMicrofono() const { return microfono_; }
     uint32_t pasosTotales() const { return pasos_.total(); }
 
-    // Nivel de ruido de la última medición, para calibrar el umbral por serie.
+    // Para calibrar el umbral por el monitor serie. El pico es el que importa:
+    // una palmada dura menos que el intervalo entre informes, así que el último
+    // valor suelto casi nunca la pilla.
     uint16_t ultimoNivel() const { return nivel_; }
+    uint16_t picoNivel() const { return pico_; }
+    void     olvidarPico() { pico_ = 0; }
 
 private:
     void escuchar(uint32_t ahoraMs);
@@ -55,4 +59,5 @@ private:
 
     uint32_t proximaEscuchaMs_ = 0;
     uint16_t nivel_ = 0;
+    uint16_t pico_ = 0;
 };

@@ -57,6 +57,7 @@ void Sensores::escuchar(uint32_t ahoraMs) {
 
     // La grabación anterior ya terminó: se mide y se pide la siguiente.
     nivel_ = rms(audio, kMuestrasAudio);
+    if (nivel_ > pico_) pico_ = nivel_;
     if (nivel_ > kUmbralRuido) ruidoPendiente_ = true;
 
     proximaEscuchaMs_ = ahoraMs + kIntervaloEscuchaMs;

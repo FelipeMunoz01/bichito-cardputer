@@ -65,10 +65,21 @@ void textoCorto(M5Canvas& l, int x, int y, const Color& c, const char* t) {
 }  // namespace
 
 void Pantalla::inicializar() {
-    M5Cardputer.Display.setRotation(1);
-    M5Cardputer.Display.setBrightness(90);
+    auto& d = M5Cardputer.Display;
+
+    // Nada de setRotation fijo: M5Cardputer.begin() ya deja la rotacion que
+    // corresponde a la placa, y en el ADV forzar la del Cardputer original
+    // dejaba todo de costado. Esto solo corrige si quedara en vertical, y el
+    // XOR con 1 cambia la orientacion sin perder el volteo de 180 grados.
+    if (d.width() < d.height()) d.setRotation(d.getRotation() ^ 1);
+    Serial.printf("[pantalla] %d x %d, rotacion %d\n", d.width(), d.height(),
+                  d.getRotation());
+
+    d.setBrightness(90);
     lienzo_.setColorDepth(16);
-    lienzo_.createSprite(kAnchoPantalla, kAltoPantalla);
+    if (!lienzo_.createSprite(kAnchoPantalla, kAltoPantalla)) {
+        Serial.println("[pantalla] no alcanzo la memoria para el lienzo");
+    }
     lienzo_.setFont(&fonts::Font0);
     lienzo_.setTextSize(1);
 }

@@ -32,7 +32,7 @@ uint32_t ultimoInformeMs  = 0;
 constexpr uint32_t kTickMs      = 1000;   // el nucleo avanza de segundo en segundo
 constexpr uint32_t kGuardadoMs  = 30000;  // y se guarda cada medio minuto
 constexpr uint32_t kDibujoMs    = 50;     // 20 cuadros por segundo
-constexpr uint32_t kInformeMs   = 10000;  // nivel de ruido al monitor serie
+constexpr uint32_t kInformeMs   = 3000;   // nivel de ruido al monitor serie
 
 void sonar(bool bien) {
     // El ADV usa el codec ES8311. M5Unified 0.2.8 o mayor ya lo configura solo.
@@ -175,9 +175,10 @@ void loop() {
     // aplaudir, y ajustar kUmbralRuido en Sensores.cpp con lo que se vea.
     if (ahora - ultimoInformeMs >= kInformeMs) {
         ultimoInformeMs = ahora;
-        Serial.printf("[sensores] pasos %lu  ruido %u\n",
+        Serial.printf("[sensores] pasos %lu  ruido ahora %u  pico %u\n",
                       static_cast<unsigned long>(sensores.pasosTotales()),
-                      sensores.ultimoNivel());
+                      sensores.ultimoNivel(), sensores.picoNivel());
+        sensores.olvidarPico();
     }
 
     if (ahora - ultimoDibujoMs >= kDibujoMs) {
